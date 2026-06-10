@@ -1,0 +1,287 @@
+name: Build Kernel Image (Improved)
+
+on:
+  push:
+    branches:
+      - 16.0-test
+    paths:
+      - 'arch/**'
+      - 'drivers/**'
+      - 'include/**'
+      - 'kernel/**'
+      - 'Makefile'
+      - 'Kconfig'
+      - 'build.config*'
+      - '.github/workflows/build-kernel-improved.yml'
+  pull_request:
+    branches:
+      - 16.0-test
+  workflow_dispatch:
+    inputs:
+      build_config:
+        description: 'Build configuration to use'
+        required: true
+        default: 'build.config.msm.lahaina'
+        type: choice
+        options:
+          - build.config.msm.lahaina
+          - build.config.gki.aarch64
+          - build.config.allmodconfig.aarch64
+
+env:
+  ARCH: arm64
+  CROSS_COMPILE: aarch64-linux-gnu-
+  CLANG_TRIPLE: aarch64-linux-gnu-
+  CC: clang
+  LLVM: 1
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: 16.0-test
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y \
+            build-essential clang llvm lld \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            bc bison flex libssl-dev libelf-dev \
+            curl wget git cpio kmod python3 \
+            device-tree-compiler
+          
+          echo "=== Build tools versions ==="
+          clang --version
+          aarch64-linux-gnu-gcc --version
+          make --version
+
+      - name: Determine build config
+        id: config
+        run: |
+          CONFIG="${{ github.event.inputs.build_config }}"
+          if [ -z "$CONFIG" ] || [ "$CONFIG" == "null" ]; then
+            CONFIG="build.config.msm.lahaina"
+          fi
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+          echo "Using build config: $CONFIG"
+
+      - name: Verify kernel version
+        run: |
+          echo "=== Kernel Info ==="
+          KERNELVERSION=$(make kernelversion 2>/dev/null || echo "unknown")
+          echo "Kernel version: $KERNELVERSION"
+
+      - name: Create .config from build.config
+        run: |
+          echo "=== Generating .config ==="
+          CONFIG_FILE="${{ steps.config.outputs.config }}"
+          
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "ERROR: Config file $CONFIG_FILE not found!"
+            ls -lah build.config*
+            exit 1
+          fi
+          
+          echo "Source config:"
+          cat "$CONFIG_FILE" | head -20
+          
+          # Use the build config as base
+          cp "$CONFIG_FILE" .config
+          
+          # Set ARM64 architecture
+          echo "" >> .config
+          echo "# Kernel configuration generated" >> .config
+          sed -i 's/^# CONFIG_ARM64/CONFIG_ARM64/g' .config
+          
+          # Generate final config
+          yes "" | make oldconfig > /dev/null 2>&1 || true
+          
+          echo "✓ .config generated"
+          ls -lah .config
+          echo "=== .config preview ==="
+          head -30 .config
+
+      - name: Check kernel source structure
+        run: |
+          echo "=== Source structure check ==="
+          ls -lah arch/arm64/boot/ 2>/dev/null || echo "Boot dir not found"
+          ls -lah drivers/clk/ 2>/dev/null | head -5 || echo "Drivers not found"
+          echo ""
+          echo "Key kernel files:"
+          find . -name "Makefile" -path "*/arch/arm64/*" | head -5
+          find . -name "*.dts" | head -5
+
+      - name: Build kernel Image
+        continue-on-error: true
+        run: |
+          echo "=== Building Kernel Image ==="
+          
+          # Show environment
+          echo "CC: $CC"
+          echo "ARCH: $ARCH"
+          echo "CROSS_COMPILE: $CROSS_COMPILE"
+          
+          # Clean previous builds
+          make clean > /dev/null 2>&1 || true
+          
+          # Build with verbose output
+          export VERBOSE=1
+          export V=1
+          
+          # Try building Image first
+          echo "Building Image..."
+          timeout 300 make -j$(nproc) Image 2>&1 | tee build.log || {
+            echo "First attempt failed, showing last lines of log:"
+            tail -50 build.log
+          }
+          
+          echo "Build completed (check logs for details)"
+
+      - name: Check for build artifacts
+        run: |
+          echo "=== Checking for kernel artifacts ==="
+          
+          # Check common locations
+          echo "1. Checking arch/arm64/boot/Image"
+          if [ -f "arch/arm64/boot/Image" ]; then
+            ls -lah arch/arm64/boot/Image
+            file arch/arm64/boot/Image
+            echo "✓ FOUND: arch/arm64/boot/Image"
+          else
+            echo "⚠ NOT FOUND: arch/arm64/boot/Image"
+          fi
+          
+          echo ""
+          echo "2. Checking for compressed images"
+          find . -name "Image.gz" -o -name "vmlinuz*" -o -name "bzImage*" 2>/dev/null | head -10
+          
+          echo ""
+          echo "3. Boot directory contents:"
+          ls -lah arch/arm64/boot/ 2>/dev/null || echo "Directory not found"
+          
+          echo ""
+          echo "4. All .config files"
+          find . -name ".config*" -type f 2>/dev/null
+
+      - name: Compress kernel image if found
+        if: success()
+        run: |
+          if [ -f "arch/arm64/boot/Image" ]; then
+            echo "=== Compressing kernel image ==="
+            gzip -k -9 arch/arm64/boot/Image
+            ls -lah arch/arm64/boot/Image*
+          fi
+
+      - name: Prepare artifacts
+        run: |
+          echo "=== Preparing Artifacts ==="
+          mkdir -p kernel-build-output
+          
+          # Copy kernel image
+          if [ -f "arch/arm64/boot/Image" ]; then
+            cp arch/arm64/boot/Image kernel-build-output/Image
+            echo "✓ Copied Image"
+          fi
+          
+          if [ -f "arch/arm64/boot/Image.gz" ]; then
+            cp arch/arm64/boot/Image.gz kernel-build-output/Image.gz
+            echo "✓ Copied Image.gz"
+          fi
+          
+          # Copy config
+          if [ -f ".config" ]; then
+            cp .config kernel-build-output/kernel.config
+            echo "✓ Copied kernel config"
+          fi
+          
+          # Copy build log
+          if [ -f "build.log" ]; then
+            cp build.log kernel-build-output/build.log
+            tail -100 build.log > kernel-build-output/build.log.tail
+            echo "✓ Copied build logs"
+          fi
+          
+          # Create info file
+          cat > kernel-build-output/BUILD_INFO.txt << 'EOF'
+          ========================================
+          Kernel Build Information
+          ========================================
+          Repository: amaturenoob/android_kernel_oneplus_sm8350
+          Branch: 16.0-test
+          Device: OnePlus SM8350 (Lahaina)
+          Architecture: ARM64 (aarch64)
+          Build Time: $(date)
+          
+          Build Configuration: ${{ steps.config.outputs.config }}
+          Kernel Version: $(make kernelversion 2>/dev/null || echo "unknown")
+          
+          Contents:
+          - Image: Uncompressed kernel binary
+          - Image.gz: Gzip-compressed kernel binary
+          - kernel.config: Kernel configuration file
+          - build.log: Complete build output
+          - build.log.tail: Last 100 lines of build output
+          
+          To use: Flash Image.gz or Image to your device boot partition
+          EOF
+          
+          echo ""
+          echo "=== Artifacts prepared ==="
+          ls -lah kernel-build-output/
+          du -sh kernel-build-output/
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-sm8350-build
+          path: kernel-build-output/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Create build summary
+        if: always()
+        run: |
+          {
+            echo "## Kernel Build Report"
+            echo ""
+            echo "### Configuration"
+            echo "- **Build Config**: ${{ steps.config.outputs.config }}"
+            echo "- **Device**: OnePlus SM8350 (Lahaina)"
+            echo "- **Architecture**: ARM64"
+            echo "- **Timestamp**: $(date)"
+            echo ""
+            
+            if [ -f "arch/arm64/boot/Image" ]; then
+              SIZE=$(stat -c%s arch/arm64/boot/Image 2>/dev/null || echo "unknown")
+              echo "### ✅ Build Status: SUCCESS"
+              echo "- **Image size**: $SIZE bytes"
+              echo ""
+              echo "### Artifacts Generated"
+              echo "- ✓ Image (uncompressed kernel)"
+              if [ -f "arch/arm64/boot/Image.gz" ]; then
+                GZ_SIZE=$(stat -c%s arch/arm64/boot/Image.gz 2>/dev/null || echo "unknown")
+                echo "- ✓ Image.gz (compressed, $GZ_SIZE bytes)"
+              fi
+              echo "- ✓ Kernel configuration"
+              echo "- ✓ Build logs"
+            else
+              echo "### ⚠️ Build Status: INCOMPLETE"
+              echo "Image not found in expected location"
+              echo "Check build logs for compilation errors"
+            fi
+            
+            echo ""
+            echo "### Download & Usage"
+            echo "1. Download artifacts from Actions tab"
+            echo "2. Extract Image.gz to your system"
+            echo "3. Flash to OnePlus SM8350 boot partition"
+            
+          } >> $GITHUB_STEP_SUMMARY

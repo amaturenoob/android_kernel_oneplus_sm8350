@@ -10,7 +10,7 @@
 #
 ---
 AccessModifierOffset: -4
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: true
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 #AlignEscapedNewlines: Left # Unknown to clang-format-4.0
@@ -25,25 +25,10 @@ AllowShortLoopsOnASingleLine: false
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-AlwaysBreakTemplateDeclarations: false
+BreakTemplateDeclarations: false
 BinPackArguments: true
 BinPackParameters: true
-BraceWrapping:
-  AfterClass: false
-  AfterControlStatement: false
-  AfterEnum: false
-  AfterFunction: true
-  AfterNamespace: true
-  AfterObjCDeclaration: false
-  AfterStruct: false
-  AfterUnion: false
-  #AfterExternBlock: false # Unknown to clang-format-5.0
-  BeforeCatch: false
-  BeforeElse: false
-  IndentBraces: false
-  #SplitEmptyFunction: true # Unknown to clang-format-4.0
-  #SplitEmptyRecord: true # Unknown to clang-format-4.0
-  #SplitEmptyNamespace: true # Unknown to clang-format-4.0
+BraceWrapping: { AfterClass: false, AfterControlStatement: false, AfterEnum: false, AfterFunction: true, AfterNamespace: true, AfterObjCDeclaration: false, AfterStruct: false, AfterUnion: false, BeforeCatch: false, BeforeElse: false, IndentBraces: false, BeforeLambdaBody: false,SplitEmptyRecord: false,BeforeWhile: false,AfterCaseLabel: false,SplitEmptyNamespace: false,SplitEmptyFunction: false,AfterExternBlock: false }
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Custom
 #BreakBeforeInheritanceComma: false # Unknown to clang-format-4.0
@@ -542,7 +527,7 @@ SpacesInContainerLiterals: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard: Cpp03
+Standard: c++03
 TabWidth: 8
 UseTab: Always
 ...

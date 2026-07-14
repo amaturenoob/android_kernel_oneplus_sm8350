@@ -2,49 +2,66 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2019, The Linux Foundation. All rights reserved.
 
-SCRIPT_DIR=$(readlink -f $(dirname $0)/)
-cd ${SCRIPT_DIR}
-cd ../../
-KERN_SRC=`pwd`
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+KERN_SRC="$(readlink -f "${SCRIPT_DIR}/../../")"
 
-shellcheck disable=SC2223
+# Ensure we are in the kernel source root
+cd "${KERN_SRC}" || return 1 2>/dev/null || exit 1
+
+if [ -z "$1" ]; then
+    echo "Error: PLATFORM_NAME not provided."
+    echo "Usage: source scripts/gki/envsetup.sh <platform_name> [base_defconfig]"
+    return 1 2>/dev/null || exit 1
+fi
+
 : ${ARCH:=arm64}
 : ${CROSS_COMPILE:=aarch64-linux-gnu-}
 : ${CLANG_TRIPLE:=aarch64-linux-gnu-}
 : ${REAL_CC:=clang}
-: ${HOSTCC:="gcc"}
-: ${HOSTLD:="ld"}
+: ${HOSTCC:=gcc}
+: ${HOSTLD:=ld}
 : ${HOSTAR:=ar}
 : ${KERN_OUT:=}
 
-CONFIGS_DIR=${KERN_SRC}/arch/${ARCH}/configs/vendor
+CONFIGS_DIR="${KERN_SRC}/arch/${ARCH}/configs/vendor"
 
-PLATFORM_NAME=$1
+PLATFORM_NAME="$1"
 
-BASE_DEFCONFIG=${KERN_SRC}/arch/${ARCH}/configs/${2:-gki_defconfig}
+BASE_DEFCONFIG="${KERN_SRC}/arch/${ARCH}/configs/${2:-gki_defconfig}"
 
 # Fragements that are available for the platform
-OPLUS_GKI_FRAG=${CONFIGS_DIR}/oplus_GKI.config
-OPLUS_QGKI_FRAG=${CONFIGS_DIR}/oplus_QGKI.config
-QCOM_GKI_FRAG=${CONFIGS_DIR}/${PLATFORM_NAME}_GKI.config
-QCOM_QGKI_FRAG=${CONFIGS_DIR}/${PLATFORM_NAME}_QGKI.config
-QCOM_DEBUG_FRAG=${CONFIGS_DIR}/${PLATFORM_NAME}_debug.config
+OPLUS_GKI_FRAG="${CONFIGS_DIR}/oplus_GKI.config"
+OPLUS_QGKI_FRAG="${CONFIGS_DIR}/oplus_QGKI.config"
+QCOM_GKI_FRAG="${CONFIGS_DIR}/${PLATFORM_NAME}_GKI.config"
+QCOM_QGKI_FRAG="${CONFIGS_DIR}/${PLATFORM_NAME}_QGKI.config"
+QCOM_DEBUG_FRAG="${CONFIGS_DIR}/${PLATFORM_NAME}_debug.config"
 
 # For user variant build merge debugfs.config fragment.
 shellcheck disable=SC1035
 if [ "${TARGET_BUILD_VARIANT}" ==  "user" ]; then
 	 #shellcheck disable=SC1073
 	QCOM_DEBUG_FS_FRAG='ls ${CONFIGS_DIR}/debugfs.config 2> /dev/null'
+    if [ -f "${CONFIGS_DIR}/debugfs.config" ]; then
+        QCOM_DEBUG_FS_FRAG="${CONFIGS_DIR}/debugfs.config"
+    else
+        QCOM_DEBUG_FS_FRAG=" "
+    fi
 else
-	QCOM_DEBUG_FS_FRAG=" "
+    # shellcheck disable=SC2034
+    QCOM_DEBUG_FS_FRAG=" "
 fi
 
 # Consolidate fragment may not be present for all platforms.
-QCOM_CONSOLIDATE_FRAG=`ls ${CONFIGS_DIR}/${PLATFORM_NAME}_consolidate.config 2> /dev/null`
+CONSOLIDATE_PATH="${CONFIGS_DIR}/${PLATFORM_NAME}_consolidate.config"
+if [ -f "$CONSOLIDATE_PATH" ]; then
+    QCOM_CONSOLIDATE_FRAG="$CONSOLIDATE_PATH"
+else
+    QCOM_CONSOLIDATE_FRAG=""
+fi
 
-QCOM_GENERIC_PERF_FRAG=${CONFIGS_DIR}/${PLATFORM_NAME}.config
-QCOM_GENERIC_DEBUG_FRAG=${CONFIGS_DIR}/${PLATFORM_NAME}-debug.config
+QCOM_GENERIC_PERF_FRAG="${CONFIGS_DIR}/${PLATFORM_NAME}.config"
+QCOM_GENERIC_DEBUG_FRAG="${CONFIGS_DIR}/${PLATFORM_NAME}-debug.config"
 
 export ARCH CROSS_COMPILE REAL_CC HOSTCC HOSTLD HOSTAR KERN_SRC KERN_OUT \
-	CONFIGS_DIR BASE_DEFCONFIG OPLUS_GKI_FRAG OPLUS_QGKI_FRAG QCOM_GKI_FRAG \
-	QCOM_QGKI_FRAG QCOM_DEBUG_FRAG
+    CONFIGS_DIR BASE_DEFCONFIG OPLUS_GKI_FRAG OPLUS_QGKI_FRAG QCOM_GKI_FRAG \
+    QCOM_QGKI_FRAG QCOM_DEBUG_FRAG

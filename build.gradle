@@ -1,0 +1,5 @@
+// Empty build file to satisfy Gradle project requirements
+// This is an Android Kernel project, primarily using Makefile and Android.mk/Android.bp
+plugins {
+    // You can add gradle plugins here if needed in the future
+}

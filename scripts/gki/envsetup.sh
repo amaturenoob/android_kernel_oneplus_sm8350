@@ -63,4 +63,5 @@ export ARCH CROSS_COMPILE REAL_CC HOSTCC HOSTLD HOSTAR KERN_SRC KERN_OUT \
     QCOM_QGKI_FRAG QCOM_DEBUG_FRAG QCOM_DEBUG_FS_FRAG QCOM_CONSOLIDATE_FRAG \
     QCOM_GENERIC_PERF_FRAG QCOM_GENERIC_DEBUG_FRAG PLATFORM_NAME
 
-graddle init /home/skep/StudioProjects/android_kernel_oneplus_sm8350/gradle/wrapper
+# Initialize gradle wrapper if needed
+./gradlew --version >/dev/null 2>&1 || gradle init --wrapper --gradle-version 9.6.1

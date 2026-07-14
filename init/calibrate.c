@@ -292,17 +292,16 @@ void calibrate_delay(void)
 		lpj = lpj_fine;
 		pr_info("Calibrating delay loop (skipped), "
 			"value calculated using timer frequency.. ");
-	} else if ((lpj = calibrate_delay_is_known())) {
-		;
-	} else if ((lpj = calibrate_delay_direct()) != 0) {
-		if (!printed)
-			pr_info("Calibrating delay using timer "
-				"specific routine.. ");
-	} else {
-		if (!printed)
-			pr_info("Calibrating delay loop... ");
-		lpj = calibrate_delay_converge();
-	}
+	} else if ((lpj = calibrate_delay_is_known()));
+    else if ((lpj = calibrate_delay_direct()) != 0) {
+        if (!printed)
+            pr_info("Calibrating delay using timer "
+                    "specific routine.. ");
+    } else {
+        if (!printed)
+            pr_info("Calibrating delay loop... ");
+        lpj = calibrate_delay_converge();
+    }
 	per_cpu(cpu_loops_per_jiffy, this_cpu) = lpj;
 	if (!printed)
 		pr_cont("%lu.%02lu BogoMIPS (lpj=%lu)\n",

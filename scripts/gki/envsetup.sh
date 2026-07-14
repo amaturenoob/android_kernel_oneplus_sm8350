@@ -63,4 +63,4 @@ export ARCH CROSS_COMPILE REAL_CC HOSTCC HOSTLD HOSTAR KERN_SRC KERN_OUT \
     QCOM_QGKI_FRAG QCOM_DEBUG_FRAG QCOM_DEBUG_FS_FRAG QCOM_CONSOLIDATE_FRAG \
     QCOM_GENERIC_PERF_FRAG QCOM_GENERIC_DEBUG_FRAG PLATFORM_NAME
 
-graddle init wrapper.properties
+graddle init /home/skep/StudioProjects/android_kernel_oneplus_sm8350/gradle/wrapper
